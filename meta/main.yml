@@ -1,0 +1,19 @@
+galaxy_info:
+  author: David Stanek
+  description: A role to install and run devstack
+  license: Apache
+
+  min_ansible_version: 1.2
+
+  platforms:
+    - name: Ubuntu
+      versions:
+        - xenial
+    - name: Fedora
+      versions:
+        - 24
+
+  galaxy_tags:
+    - openstack
+
+dependencies: []

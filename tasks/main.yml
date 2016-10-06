@@ -1,0 +1,79 @@
+---
+
+# Copyright 2016 David Stanek <dstanek@dstanek.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+- name: Install system dependencies
+  package:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - git
+    - python-pip
+
+- name: Install git-review
+  pip:
+    name: git-review
+    state: latest
+
+- name: Clone devstack
+  become: yes
+  become_user: "{{ devstack_username }}"
+  git:
+    repo: "{{ devstack_repo }}"
+    dest: "~{{ devstack_username }}/devstack"
+    update: no
+
+- name: local.conf
+  become: yes
+  become_user: "{{ devstack_username }}"
+  template:
+    src: "local.conf"
+    dest: "~{{ devstack_username }}/devstack/local.conf"
+    owner: "{{ devstack_username }}"
+    group: "{{ devstack_username }}"
+    mode: "0600"
+  notify:
+    - Restack it!
+
+- name: Check for an existing stack
+  stat:
+    path: /opt/stack/keystone
+  register: existing_stack
+
+- name: Check for a running stack
+  become: yes
+  become_user: "{{ devstack_username }}"
+  shell: "screen -list | grep -q stack"
+  register: running_stack
+  changed_when: False
+  failed_when: False
+
+- name: Stack it!
+  become: yes
+  become_user: "{{ devstack_username }}"
+  shell: "~{{ devstack_username }}/devstack/stack.sh"
+  # If existing_stack doesn't exist we need to run stack.sh to create it. Or
+  # if devstack is not running and it's supposed to be we need to run stack.sh.
+  when: >
+    not existing_stack.stat.exists or
+    (running_stack.rc != 0 and devstack_keep_running)
+
+- name: Unstack it!
+  become: yes
+  become_user: "{{ devstack_username }}"
+  shell: "~{{ devstack_username }}/devstack/unstack.sh"
+  # If devstack is running and it's not supposed to be we need to
+  # run unstack.sh.
+  when: "running_stack.rc == 0 and not devstack_keep_running"
